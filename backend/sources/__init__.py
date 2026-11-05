@@ -4,8 +4,9 @@ Adding a source = adding a module with an async `lookup(hash_value, hash_type, c
 that returns a SourceResult, and listing it here.
 """
 
-from backend.sources import virustotal
+from backend.sources import malwarebazaar, virustotal
 
 SOURCES = {
     "virustotal": virustotal.lookup,
+    "malwarebazaar": malwarebazaar.lookup,
 }
