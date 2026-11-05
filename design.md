@@ -40,7 +40,7 @@ Browser -> Streamlit frontend --HTTP JSON--> FastAPI backend --> VirusTotal / Ma
 | `ABUSECH_AUTH_KEY` | none | abuse.ch key (covers MalwareBazaar and ThreatFox) |
 | `SOURCE_TIMEOUT_SECONDS` | `10` | Per-source request timeout |
 
-Streamlit's port is set on the command line: `streamlit run frontend/app.py --server.port 8501`.
+The Streamlit page also listens on 127.0.0.1 only (`.streamlit/config.toml`, `address = "127.0.0.1"`), because it calls the backend with your key. Its port is 8501; run a second portal with `--server.port 8502`.
 `.env` is in `.gitignore`. `.env.example` lists the variables with placeholder values only.
 
 ## API contract (v1)
