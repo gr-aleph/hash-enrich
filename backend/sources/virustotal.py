@@ -3,15 +3,15 @@
 Only ever sends a hash. Never call POST /api/v3/files (that uploads a file).
 """
 
-import asyncio
-from datetime import datetime, timezone
 from typing import Any
 
 import httpx
 
 from backend.config import Settings
 from backend.models import SourceResult, source_error
+from backend.sources.http import json_body, send, unix_to_iso
 
+NAME = "VirusTotal"
 FILE_REPORT_URL = "https://www.virustotal.com/api/v3/files/{hash}"
 GUI_FILE_URL = "https://www.virustotal.com/gui/file/{sha256}"
 
@@ -22,20 +22,16 @@ async def lookup(hash_value: str, hash_type: str, client: httpx.AsyncClient, set
     if not settings.vt_api_key:
         return source_error("missing_key", "VT_API_KEY is not set in .env")
 
-    timeout = settings.source_timeout_seconds
-    try:
-        # asyncio.timeout caps the whole request; httpx's own timeout only caps each step.
-        async with asyncio.timeout(timeout):
-            response = await client.get(
-                FILE_REPORT_URL.format(hash=hash_value),
-                headers={"x-apikey": settings.vt_api_key, "accept": "application/json"},
-                timeout=timeout,
-            )
-    except (TimeoutError, httpx.TimeoutException):
-        return source_error("timeout", f"VirusTotal did not answer within {timeout:g} seconds")
-    except httpx.HTTPError as exc:
-        # Only the exception type: never echo request details, which include the key header.
-        return source_error("upstream_error", f"Could not reach VirusTotal ({type(exc).__name__})")
+    response = await send(
+        client,
+        "GET",
+        FILE_REPORT_URL.format(hash=hash_value),
+        source=NAME,
+        timeout=settings.source_timeout_seconds,
+        headers={"x-apikey": settings.vt_api_key, "accept": "application/json"},
+    )
+    if isinstance(response, SourceResult):
+        return response
 
     status = response.status_code
     if status == 200:
@@ -65,19 +61,15 @@ def _normalize(body: dict[str, Any]) -> dict[str, Any]:
         **{key: int(stats.get(key, 0)) for key in STAT_KEYS},
         "type_description": attributes.get("type_description"),
         "names": list(attributes.get("names") or []),
-        "first_submission_date": _unix_to_iso(first_submission) if first_submission is not None else None,
+        "first_submission_date": unix_to_iso(first_submission) if first_submission is not None else None,
         "link": GUI_FILE_URL.format(sha256=sha256),
     }
-
-
-def _unix_to_iso(timestamp: int) -> str:
-    return datetime.fromtimestamp(int(timestamp), tz=timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
 def _vt_code(response: httpx.Response, sep: str = ", ") -> str:
     """VirusTotal's error code (e.g. QuotaExceededError), if the body has one."""
     try:
-        code = response.json()["error"]["code"]
-    except (ValueError, KeyError, TypeError):
+        code = json_body(response)["error"]["code"]
+    except (KeyError, TypeError):
         return ""
     return f"{sep}{code}" if isinstance(code, str) else ""
