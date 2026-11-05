@@ -1,6 +1,7 @@
 """Per-source tests. Hits, unknown hashes and bad keys replay recorded real responses;
 429, 500 and timeouts are simulated. See design.md, Testing."""
 
+import json
 from urllib.parse import parse_qs
 
 import pytest
@@ -133,3 +134,64 @@ def test_malwarebazaar_missing_key_makes_no_call(api):
     client = api(abusech_key="")
     assert source_result(client, "malwarebazaar")["error"]["code"] == "missing_key"
     assert client.calls["malwarebazaar"] == []
+
+
+# ---------- ThreatFox ----------
+
+TF_EXPECTED = {
+    "matches": [
+        {
+            "malware_printable": "Mirai",
+            "threat_type": "payload",
+            "confidence_level": 90,
+            "first_seen": "2026-11-05T19:57:10Z",
+            "last_seen": None,
+        }
+    ]
+}
+
+
+def test_threatfox_hit_recorded(api):
+    client = api(threatfox=recorded("threatfox", "hit"))
+    assert source_result(client, "threatfox") == {"status": "ok", "data": TF_EXPECTED, "error": None}
+    [request] = client.calls["threatfox"]
+    assert request.method == "POST"
+    assert str(request.url) == "https://threatfox-api.abuse.ch/api/v1/"
+    assert request.headers["Auth-Key"] == FAKE_ABUSECH_KEY
+    assert json.loads(request.content) == {"query": "search_ioc", "search_term": SAMPLE_SHA256, "exact_match": True}
+
+
+def test_threatfox_unknown_recorded(api):
+    result = source_result(api(threatfox=recorded("threatfox", "unknown")), "threatfox", UNKNOWN_SHA256)
+    assert result == {"status": "not_found", "data": None, "error": None}
+
+
+def test_threatfox_accepts_sha1(api):
+    client = api(threatfox=recorded("threatfox", "unknown"))
+    assert source_result(client, "threatfox", SAMPLE_SHA1)["status"] == "not_found"
+    assert json.loads(client.calls["threatfox"][0].content)["search_term"] == SAMPLE_SHA1
+
+
+@pytest.mark.parametrize(
+    "handler, expected",
+    [
+        (recorded("threatfox", "bad_key"), "auth_failed"),
+        (simulated(429), "rate_limited"),
+        (simulated(500), "upstream_error"),
+        (simulated(200, {"query_status": "illegal_search_term"}), "upstream_error"),
+        (simulated(200, {"query_status": "ok", "data": "not a list"}), "upstream_error"),
+        (times_out, "timeout"),
+    ],
+    ids=["bad-key-recorded", "429", "500", "unknown-query-status", "bad-body", "timeout"],
+)
+def test_threatfox_errors(api, handler, expected):
+    result = source_result(api(threatfox=handler), "threatfox")
+    assert result["status"] == "error"
+    assert result["data"] is None
+    assert result["error"]["code"] == expected
+
+
+def test_threatfox_missing_key_makes_no_call(api):
+    client = api(abusech_key="")
+    assert source_result(client, "threatfox")["error"]["code"] == "missing_key"
+    assert client.calls["threatfox"] == []
