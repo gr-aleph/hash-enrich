@@ -17,6 +17,8 @@ class Settings:
     backend_port: int
     vt_api_key: str
     source_timeout_seconds: float
+    # One abuse.ch key covers MalwareBazaar and ThreatFox.
+    abusech_auth_key: str = ""
 
 
 def get_settings() -> Settings:
@@ -24,4 +26,5 @@ def get_settings() -> Settings:
         backend_port=int(os.getenv("BACKEND_PORT", "8000")),
         vt_api_key=os.getenv("VT_API_KEY", "").strip(),
         source_timeout_seconds=float(os.getenv("SOURCE_TIMEOUT_SECONDS", "10")),
+        abusech_auth_key=os.getenv("ABUSECH_AUTH_KEY", "").strip(),
     )
