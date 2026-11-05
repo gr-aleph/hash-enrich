@@ -64,4 +64,9 @@ def _normalize(ioc: dict[str, Any]) -> dict[str, Any]:
         "confidence_level": ioc.get("confidence_level"),
         "first_seen": abusech_to_iso(ioc.get("first_seen")),
         "last_seen": abusech_to_iso(ioc.get("last_seen")),
+        # Optional details (added within v1).
+        "malware_alias": ioc.get("malware_alias"),
+        "tags": list(ioc.get("tags") or []),
+        "malpedia": ioc.get("malware_malpedia"),
+        "reference": ioc.get("reference"),
     }

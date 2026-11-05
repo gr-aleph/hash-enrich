@@ -72,6 +72,14 @@ def test_response_shape(api, value, hash_type):
             "names": ["eicar.com", "eicar.txt"],
             "first_submission_date": "2006-05-22T07:17:00Z",
             "link": f"https://www.virustotal.com/gui/file/{EICAR_SHA256}",
+            # Optional details the simulated response doesn't have: null or []
+            "threat_label": None,
+            "threat_categories": [],
+            "threat_names": [],
+            "reputation": None,
+            "tags": [],
+            "last_analysis_date": None,
+            "first_seen_itw_date": None,
         },
         "error": None,
     }

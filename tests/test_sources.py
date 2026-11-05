@@ -44,6 +44,14 @@ def test_virustotal_hit_recorded(api):
     assert data["names"] == attributes["names"]
     assert data["first_submission_date"] == unix_to_iso(attributes["first_submission_date"])
     assert data["link"] == f"https://www.virustotal.com/gui/file/{SAMPLE_SHA256}"
+    # Optional threat details, from the same recording
+    assert data["threat_label"] == "trojan.mozi/mirai"
+    assert data["threat_categories"] == ["trojan"]
+    assert data["threat_names"] == ["mozi", "mirai", "ddos"]
+    assert data["reputation"] == -12
+    assert data["tags"] == ["upx", "elf", "exploit", "cve-2017-17215"]
+    assert data["last_analysis_date"] == unix_to_iso(attributes["last_analysis_date"])
+    assert data["first_seen_itw_date"] == unix_to_iso(attributes["first_seen_itw_date"])
     [request] = client.calls["virustotal"]
     assert request.method == "GET"
     assert str(request.url) == f"https://www.virustotal.com/api/v3/files/{SAMPLE_SHA256}"
@@ -88,6 +96,8 @@ MB_EXPECTED = {
     "file_type": "elf",
     "first_seen": "2026-04-17T11:47:11Z",
     "last_seen": "2026-07-14T08:24:54Z",
+    "delivery_method": "web_download",
+    "origin_country": "DE",
 }
 
 
@@ -146,6 +156,10 @@ TF_EXPECTED = {
             "confidence_level": 90,
             "first_seen": "2026-11-05T19:57:10Z",
             "last_seen": None,
+            "malware_alias": "Katana",
+            "tags": ["elf", "Mirai"],
+            "malpedia": "https://malpedia.caad.fkie.fraunhofer.de/details/elf.mirai",
+            "reference": None,
         }
     ]
 }

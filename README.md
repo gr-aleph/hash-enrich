@@ -72,6 +72,8 @@ Hashes to try:
 - `add97f691f8bd8af5efe0480a90f12bcdcfa089f7432088b4ff8bd0606ff58de`: a Mirai sample all three sources know (ThreatFox drops IOCs after 6 months, so it may become `not_found` there).
 - `44d88612fea8a8f36de82e1278abb02f`: the public EICAR antivirus test file (VirusTotal only).
 
+**Reading the page:** a verdict badge comes first. It says **Known malicious** when 5 or more VirusTotal engines flag the file, or when MalwareBazaar or ThreatFox lists it. It says **Suspicious** for 1–4 VirusTotal detections only, **No record in any source** when nothing matched (which is not proof the file is safe), and **Couldn't check** when every source failed. Below it, a summary card combines the key facts: family and aliases, detections, classification, reputation, ThreatFox confidence, delivery and origin, first seen, CVEs and tags. Then there is one tab per source with its full details or its error.
+
 To stop either part, click its window and press **Ctrl+C**.
 
 ## Use the API directly

@@ -8,3 +8,16 @@ port = 8501
 
 [browser]
 gatherUsageStats = false
+
+[client]
+# Hide Streamlit's developer toolbar (e.g. the "Deploy" button).
+toolbarMode = "viewer"
+
+# Dark "SOC console" look: navy background, cyan accent.
+[theme]
+base = "dark"
+primaryColor = "#22d3ee"
+backgroundColor = "#0b1220"
+secondaryBackgroundColor = "#111a2e"
+textColor = "#e2e8f0"
+font = "sans serif"
