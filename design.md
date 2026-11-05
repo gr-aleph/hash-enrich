@@ -55,11 +55,24 @@ The Streamlit page also listens on 127.0.0.1 only (`.streamlit/config.toml`, `ad
 {
   "hash": "add97f691f8bd8af5efe0480a90f12bcdcfa089f7432088b4ff8bd0606ff58de",
   "hash_type": "sha256",
-  "queried_at": "2026-11-05T21:31:05Z",
+  "queried_at": "2026-11-05T22:18:43Z",
   "sources": {
-    "virustotal":    {"status": "ok", "data": {"malicious": 49, "suspicious": 0, "harmless": 0, "undetected": 15, "type_description": "ELF", "names": ["bin.sh", "r01km93o.exe", "w5yhz6.exe", "i.elf"], "first_submission_date": "2026-04-17T11:50:24Z", "link": "https://www.virustotal.com/gui/file/add97f691f8bd8af5efe0480a90f12bcdcfa089f7432088b4ff8bd0606ff58de"}, "error": null},
-    "malwarebazaar": {"status": "ok", "data": {"signature": "Mirai", "tags": ["elf", "Mirai"], "file_type": "elf", "first_seen": "2026-04-17T11:47:11Z", "last_seen": "2026-07-14T08:24:54Z"}, "error": null},
-    "threatfox":     {"status": "ok", "data": {"matches": [{"malware_printable": "Mirai", "threat_type": "payload", "confidence_level": 90, "first_seen": "2026-11-05T19:57:10Z", "last_seen": null}]}, "error": null}
+    "virustotal": {"status": "ok", "error": null, "data": {
+      "malicious": 49, "suspicious": 0, "harmless": 0, "undetected": 15,
+      "type_description": "ELF", "names": ["bin.sh", "r01km93o.exe", "w5yhz6.exe", "i.elf"],
+      "first_submission_date": "2026-04-17T11:50:24Z",
+      "link": "https://www.virustotal.com/gui/file/add97f691f8bd8af5efe0480a90f12bcdcfa089f7432088b4ff8bd0606ff58de",
+      "threat_label": "trojan.mozi/mirai", "threat_categories": ["trojan"], "threat_names": ["mozi", "mirai", "ddos"],
+      "reputation": -12, "tags": ["upx", "elf", "exploit", "cve-2017-17215"],
+      "last_analysis_date": "2026-11-05T19:03:42Z", "first_seen_itw_date": "2026-04-17T12:25:16Z"}},
+    "malwarebazaar": {"status": "ok", "error": null, "data": {
+      "signature": "Mirai", "tags": ["elf", "Mirai"], "file_type": "elf",
+      "first_seen": "2026-04-17T11:47:11Z", "last_seen": "2026-07-14T08:24:54Z",
+      "delivery_method": "web_download", "origin_country": "DE"}},
+    "threatfox": {"status": "ok", "error": null, "data": {"matches": [{
+      "malware_printable": "Mirai", "threat_type": "payload", "confidence_level": 90,
+      "first_seen": "2026-11-05T19:57:10Z", "last_seen": null, "malware_alias": "Katana", "tags": ["elf", "Mirai"],
+      "malpedia": "https://malpedia.caad.fkie.fraunhofer.de/details/elf.mirai", "reference": null}]}}
   }
 }
 ```
@@ -75,10 +88,11 @@ The Streamlit page also listens on 127.0.0.1 only (`.streamlit/config.toml`, `ad
 `not_found` is not an error. "Not found" and "0 detections" do not mean "safe".
 
 **`data` per source**
-- VirusTotal: `malicious`, `suspicious`, `harmless`, `undetected` from `last_analysis_stats` (its other 4 keys are left out on purpose); `type_description`; `names`; `first_submission_date` converted from Unix timestamp to ISO 8601 UTC; `link` built as `https://www.virustotal.com/gui/file/<data.id>` (`data.id` is the SHA-256).
-- MalwareBazaar (from `data[0]`): `signature`, `tags`, `file_type`, `first_seen`, `last_seen`.
-- ThreatFox: `matches`, a list of `{malware_printable, threat_type, confidence_level, first_seen, last_seen}` (`last_seen` may be `null`).
+- VirusTotal: `malicious`, `suspicious`, `harmless`, `undetected` from `last_analysis_stats` (its other 4 keys are left out on purpose); `type_description`; `names`; `first_submission_date` converted from Unix timestamp to ISO 8601 UTC; `link` built as `https://www.virustotal.com/gui/file/<data.id>` (`data.id` is the SHA-256). Threat details: `threat_label`, `threat_categories`, `threat_names` (from `popular_threat_classification`, most common first); `reputation` (community score, negative = bad); `tags` (may include CVEs); `last_analysis_date`, `first_seen_itw_date` (ISO).
+- MalwareBazaar (from `data[0]`): `signature`, `tags`, `file_type`, `first_seen`, `last_seen`, `delivery_method`, `origin_country`.
+- ThreatFox: `matches`, a list of `{malware_printable, threat_type, confidence_level, first_seen, last_seen, malware_alias, tags, malpedia, reference}` (`last_seen`, `malware_alias`, `reference` may be `null`).
 - abuse.ch dates (`2026-04-17 11:47:11`, `2026-11-05 19:57:10 UTC`) are converted to ISO 8601 UTC.
+- v1 may gain optional fields over time; callers must ignore fields they don't know. A field a source doesn't send is `null`, or `[]` for lists. Existing fields are never removed or renamed within v1.
 
 **Status mapping** (abuse.ch values confirmed by recorded responses, 5 Nov 2026)
 

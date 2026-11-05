@@ -55,15 +55,33 @@ def _normalize(body: dict[str, Any]) -> dict[str, Any]:
     data = body["data"]
     attributes = data["attributes"]
     stats = attributes.get("last_analysis_stats") or {}
-    first_submission = attributes.get("first_submission_date")
     sha256 = attributes.get("sha256") or data["id"]
+    classification = attributes.get("popular_threat_classification") or {}
     return {
         **{key: int(stats.get(key, 0)) for key in STAT_KEYS},
         "type_description": attributes.get("type_description"),
         "names": list(attributes.get("names") or []),
-        "first_submission_date": unix_to_iso(first_submission) if first_submission is not None else None,
+        "first_submission_date": _date(attributes, "first_submission_date"),
         "link": GUI_FILE_URL.format(sha256=sha256),
+        # Optional details (added within v1; absent values are null or []).
+        "threat_label": classification.get("suggested_threat_label"),
+        "threat_categories": _values(classification.get("popular_threat_category")),
+        "threat_names": _values(classification.get("popular_threat_name")),
+        "reputation": attributes.get("reputation"),
+        "tags": list(attributes.get("tags") or []),
+        "last_analysis_date": _date(attributes, "last_analysis_date"),
+        "first_seen_itw_date": _date(attributes, "first_seen_itw_date"),
     }
+
+
+def _date(attributes: dict[str, Any], key: str) -> str | None:
+    value = attributes.get(key)
+    return unix_to_iso(value) if value is not None else None
+
+
+def _values(entries: Any) -> list[str]:
+    """popular_threat_category / popular_threat_name are lists of {"value": ..., "count": ...}, most common first."""
+    return [entry["value"] for entry in entries or [] if isinstance(entry, dict) and entry.get("value")]
 
 
 def _vt_code(response: httpx.Response, sep: str = ", ") -> str:
