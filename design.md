@@ -53,18 +53,18 @@ The Streamlit page also listens on 127.0.0.1 only (`.streamlit/config.toml`, `ad
 
 ```json
 {
-  "hash": "44d88612fea8a8f36de82e1278abb02f",
-  "hash_type": "md5",
-  "queried_at": "2026-11-05T18:00:00Z",
+  "hash": "add97f691f8bd8af5efe0480a90f12bcdcfa089f7432088b4ff8bd0606ff58de",
+  "hash_type": "sha256",
+  "queried_at": "2026-11-05T21:31:05Z",
   "sources": {
-    "virustotal":    {"status": "ok", "data": {"malicious": 61, "suspicious": 0, "harmless": 0, "undetected": 11, "type_description": "Text", "names": ["eicar.com"], "first_submission_date": "2006-05-22T07:17:00Z", "link": "https://www.virustotal.com/gui/file/..."}, "error": null},
-    "malwarebazaar": {"status": "not_found", "data": null, "error": null},
-    "threatfox":     {"status": "error", "data": null, "error": {"code": "rate_limited", "message": "ThreatFox returned 429 Too Many Requests"}}
+    "virustotal":    {"status": "ok", "data": {"malicious": 49, "suspicious": 0, "harmless": 0, "undetected": 15, "type_description": "ELF", "names": ["bin.sh", "r01km93o.exe", "w5yhz6.exe", "i.elf"], "first_submission_date": "2026-04-17T11:50:24Z", "link": "https://www.virustotal.com/gui/file/add97f691f8bd8af5efe0480a90f12bcdcfa089f7432088b4ff8bd0606ff58de"}, "error": null},
+    "malwarebazaar": {"status": "ok", "data": {"signature": "Mirai", "tags": ["elf", "Mirai"], "file_type": "elf", "first_seen": "2026-04-17T11:47:11Z", "last_seen": "2026-07-14T08:24:54Z"}, "error": null},
+    "threatfox":     {"status": "ok", "data": {"matches": [{"malware_printable": "Mirai", "threat_type": "payload", "confidence_level": 90, "first_seen": "2026-11-05T19:57:10Z", "last_seen": null}]}, "error": null}
   }
 }
 ```
 
-(Illustrative values. Replace with fields from a real recorded response.)
+(Real response for a Mirai sample, 5 Nov 2026. A failing source looks like `{"status": "error", "data": null, "error": {"code": "auth_failed", "message": "VirusTotal rejected the API key (HTTP 401, WrongCredentialsError)"}}`.)
 
 | Field | Meaning |
 |---|---|
@@ -76,17 +76,18 @@ The Streamlit page also listens on 127.0.0.1 only (`.streamlit/config.toml`, `ad
 
 **`data` per source**
 - VirusTotal: `malicious`, `suspicious`, `harmless`, `undetected` from `last_analysis_stats` (its other 4 keys are left out on purpose); `type_description`; `names`; `first_submission_date` converted from Unix timestamp to ISO 8601 UTC; `link` built as `https://www.virustotal.com/gui/file/<data.id>` (`data.id` is the SHA-256).
-- MalwareBazaar (proposed, confirm by recording): `signature`, `tags`, `file_type`, `first_seen`, `last_seen`.
-- ThreatFox (proposed, confirm by recording): `matches`, a list of `{malware_printable, threat_type, confidence_level, first_seen, last_seen}`.
+- MalwareBazaar (from `data[0]`): `signature`, `tags`, `file_type`, `first_seen`, `last_seen`.
+- ThreatFox: `matches`, a list of `{malware_printable, threat_type, confidence_level, first_seen, last_seen}` (`last_seen` may be `null`).
+- abuse.ch dates (`2026-04-17 11:47:11`, `2026-11-05 19:57:10 UTC`) are converted to ISO 8601 UTC.
 
-**Status mapping**
+**Status mapping** (abuse.ch values confirmed by recorded responses, 5 Nov 2026)
 
 | Result | VirusTotal | MalwareBazaar | ThreatFox |
 |---|---|---|---|
-| `ok` | HTTP 200 | `query_status` `ok` | `query_status` `ok` |
-| `not_found` | HTTP 404 | `hash_not_found` | undocumented, confirm by recording |
-| `unsupported` | never | never (see Open questions) | SHA-1, without calling ThreatFox |
-| `auth_failed` | HTTP 401 | HTTP 401/403 or confirmed bad-key status | same as MalwareBazaar |
+| `ok` | HTTP 200 | HTTP 200, `query_status` `ok` | HTTP 200, `query_status` `ok` |
+| `not_found` | HTTP 404 `NotFoundError` | HTTP 200, `hash_not_found` | HTTP 200, `no_result` |
+| `unsupported` | never | never | never (all three accept MD5, SHA-1, SHA-256; the status stays in the contract for future sources) |
+| `auth_failed` | HTTP 401 | HTTP 401/403, or `unknown_auth_key` (recorded: 403) | same as MalwareBazaar |
 | `rate_limited` | HTTP 429 | HTTP 429 | HTTP 429 |
 | `timeout` / `missing_key` | no answer in time / key empty, no request sent | same | same |
 | `upstream_error` | anything else | anything else, incl. unknown `query_status` | same as MalwareBazaar |
@@ -97,7 +98,7 @@ The Streamlit page also listens on 127.0.0.1 only (`.streamlit/config.toml`, `ad
 {"error": {"code": "invalid_hash", "message": "Expected 32, 40 or 64 hex characters (MD5, SHA-1, SHA-256)"}}
 ```
 
-**502 Bad Gateway**: no source returned `ok` or `not_found`. Same body shape as 200. In Milestone 1 (VirusTotal only), a VirusTotal error means 502.
+**502 Bad Gateway**: no source returned `ok` or `not_found`. Same body shape as 200.
 
 ### `GET /api/v1/health`
 
@@ -110,8 +111,8 @@ Checked against official docs on 5 Nov 2026: [VirusTotal](https://docs.virustota
 | Source | Request | Limits | Hash types | Notes |
 |---|---|---|---|---|
 | VirusTotal | `GET https://www.virustotal.com/api/v3/files/{hash}`, header `x-apikey` | 4/min, 500/day | MD5, SHA-1, SHA-256 | Free key; not for commercial use. **Never** call `POST /api/v3/files` (upload). |
-| MalwareBazaar | `POST https://mb-api.abuse.ch/api/v1/`, form `query=get_info&hash=...`, header `Auth-Key` | Fair use | Docs say all three but contradict themselves | Free abuse.ch key, mandatory since 30 Jun 2025. |
-| ThreatFox | `POST https://threatfox-api.abuse.ch/api/v1/`, JSON `{"query": "search_hash", "hash": "..."}`, header `Auth-Key` | Fair use | MD5, SHA-256 only | Same key. IOCs older than 6 months are not returned. |
+| MalwareBazaar | `POST https://mb-api.abuse.ch/api/v1/`, form `query=get_info&hash=...`, header `Auth-Key` | Fair use | MD5, SHA-1, SHA-256 (SHA-1 confirmed by recording) | Free abuse.ch key, mandatory since 30 Jun 2025. Free under fair use; commercial use may need a paid plan. |
+| ThreatFox | `POST https://threatfox-api.abuse.ch/api/v1/`, JSON `{"query": "search_ioc", "search_term": "...", "exact_match": true}`, header `Auth-Key` | Fair use | MD5, SHA-1, SHA-256 (it stores `md5_hash`, `sha1_hash`, `sha256_hash` IOCs) | Same key and terms. Finds the hash itself as an IOC. IOCs older than 6 months are not returned. |
 
 On HTTP 429 return `rate_limited`; do not retry in a loop.
 
@@ -125,10 +126,11 @@ On HTTP 429 return `rate_limited`; do not retry in a loop.
 
 ## Testing
 
-- `pytest`, no network calls; tests must pass with the network off.
-- Hit and unknown hash: recorded real responses in `tests/fixtures/<source>/`, saved by `scripts/record.py` (response body only, no request headers).
-- Errors (timeout, 429, 401): simulated with `httpx.MockTransport`. Contract shape (200, 400, 502) tested with FastAPI's `TestClient`.
-- Before committing a fixture: `git grep -n -i -E "x-apikey|auth-key|<first 6 chars of your key>"`.
+- `pytest`, no network calls; tests must pass with the network off. A guard in `tests/conftest.py` fails any test that opens a real connection.
+- Hit, unknown hash and bad key: recorded real responses in `tests/fixtures/<source>/<case>.json`, saved by `scripts/record.py` as `{"status_code", "body"}` only (no request headers, no keys). Bad-key recordings use a deliberately invalid key.
+- Replay: the tests swap the backend's HTTP client for one built on `httpx.MockTransport`, which routes each request by host to the matching recorded file, so no source is ever called.
+- 429, 500 and timeouts: simulated the same way. Contract shape (200, 400, 502) and "one failing source still returns the other two" are tested through FastAPI's `TestClient`.
+- Before committing a fixture: `git grep -n -i -E "x-apikey|auth-key|<first 6 chars of each key>" -- tests/fixtures` finds nothing.
 
 ## Decisions
 
@@ -142,7 +144,8 @@ On HTTP 429 return `rate_limited`; do not retry in a loop.
 | Call sources at the same time | Worst case one timeout, not three. |
 | 502 only when no source answered | `unsupported` + `error` tells the caller nothing. |
 | Frontend trims whitespace, API strict | Pasted hashes carry spaces; other callers get a clear 400. |
-| Recorded hits, simulated errors | Timeouts can't be recorded; real 429s waste quota. |
+| Recorded hits, unknowns and bad keys; simulated 429/500/timeouts | Timeouts can't be recorded; real 429s waste quota. |
+| ThreatFox `search_ioc` (exact), not `search_hash` | `search_hash` returns IOCs *linked to* a sample (e.g. C2 URLs) and returned `no_result` for a hash ThreatFox lists; `search_ioc` finds the hash itself. |
 | Plain JSON fixtures, no recording library | Easy to check for keys; libraries can save request headers. |
 | Per-source `status`, versioned `/api/v1/` | One failing source can't hide others; later changes go to v2. |
 | No containers | Docker Desktop is often restricted on work laptops. |
@@ -169,7 +172,7 @@ All install on Windows with 3.14 (httpx officially lists only up to 3.12 and has
 
 ## Open questions
 
-- MalwareBazaar `get_info`: does it accept SHA-1? What are the success and bad-key responses? Confirm by recording.
-- ThreatFox `search_hash`: "not found" and bad-key `query_status` values are undocumented. Confirm by recording.
 - VirusTotal: docs don't say whether hash lookups are visible to others. Treat them as not private.
-- VirusTotal GUI link format is not in the API docs. Check it once by hand.
+- Starlette warns that its test client will move from `httpx` to `httpx2`. Tests still pass; revisit when re-pinning.
+
+Answered (5 Nov 2026): MalwareBazaar accepts SHA-1 and both abuse.ch sources answer a bad key with HTTP 403 `unknown_auth_key` (recorded); ThreatFox not found is `no_result` (recorded); the VirusTotal GUI link opens the file page (checked by hand).
