@@ -16,13 +16,15 @@ import httpx
 import streamlit as st
 from dotenv import load_dotenv
 
+from summary import SOURCE_LABELS, esc, safe_url, summarize, verdict
+
 load_dotenv()
 
 BACKEND_URL = os.getenv("BACKEND_URL", "http://127.0.0.1:8000").rstrip("/")
 # Longer than the backend's per-source timeout, so the backend always answers first.
 BACKEND_TIMEOUT = float(os.getenv("SOURCE_TIMEOUT_SECONDS", "10")) + 5
 
-SOURCE_LABELS = {"virustotal": "VirusTotal", "malwarebazaar": "MalwareBazaar", "threatfox": "ThreatFox"}
+VERDICT_ICON = {"malicious": "●", "suspicious": "◐", "no_record": "○", "unknown": "◌"}
 STATUS_CHIP = {  # status -> (css class, text)
     "ok": ("chip-ok", "record found"),
     "not_found": ("chip-none", "no record"),
@@ -53,19 +55,19 @@ CSS = """
        border-radius:6px; background:#0b1220; border:1px solid var(--line); color:#cbd5e1; }
 .tag-cve { color:var(--amber); border-color:rgba(251,191,36,.5); }
 .he-note { color:var(--muted); font-size:.8rem; }
+.verdict { display:flex; align-items:center; gap:1rem; border-radius:10px; padding:.9rem 1.2rem; margin-bottom:1rem; border:1px solid; }
+.verdict-icon { font-size:1.6rem; line-height:1; }
+.verdict-title { font-family: ui-monospace, Consolas, monospace; font-weight:700; letter-spacing:.06em; text-transform:uppercase; font-size:1.05rem; }
+.verdict-detail { color:#cbd5e1; font-size:.88rem; }
+.v-malicious { color:var(--red); border-color:rgba(248,113,113,.55); background:rgba(248,113,113,.08); }
+.v-suspicious { color:var(--amber); border-color:rgba(251,191,36,.55); background:rgba(251,191,36,.08); }
+.v-no_record { color:#cbd5e1; border-color:var(--line); background:var(--panel); }
+.v-unknown { color:var(--muted); border-color:var(--line); background:var(--panel); border-style:dashed; }
+.he-grid { display:grid; grid-template-columns:repeat(auto-fit, minmax(210px, 1fr)); gap:.2rem 1.4rem; }
+.he-big { font-family: ui-monospace, Consolas, monospace; font-size:1.35rem; font-weight:700; color:#f8fafc; }
+.he-card a { color:var(--cyan); text-decoration:none; }
 </style>
 """
-
-
-def esc(value: Any) -> str:
-    """HTML-escape any value from a source; None becomes an em dash."""
-    return "—" if value is None or value == "" else escape(str(value))
-
-
-def safe_url(value: Any) -> str | None:
-    """Only http(s) links from sources are shown, never javascript: or other schemes."""
-    text = str(value or "").strip()
-    return text if text.lower().startswith(("https://", "http://")) else None
 
 
 def tags_html(tags: list[Any]) -> str:
@@ -154,7 +156,46 @@ def show_response(response: httpx.Response) -> None:
 
 
 def show_overview(body: dict[str, Any]) -> None:
-    """Verdict and summary card: added in the next step."""
+    sources = body["sources"]
+    v = verdict(sources)
+    st.markdown(
+        f'<div class="verdict v-{v.level}"><div class="verdict-icon">{VERDICT_ICON[v.level]}</div>'
+        f'<div><div class="verdict-title">{esc(v.title)}</div><div class="verdict-detail">{esc(v.detail)}</div></div></div>',
+        unsafe_allow_html=True,
+    )
+    if v.level in ("no_record", "unknown"):
+        return  # nothing to summarize
+
+    s = summarize(sources)
+    cells = []
+    if s.family:
+        aka = f' <span class="he-note">aka {esc(", ".join(s.aliases))}</span>' if s.aliases else ""
+        cells.append(field("Malware family", f'<span class="he-big">{esc(s.family)}</span>{aka}'))
+    if s.detections:
+        malicious, counted = s.detections
+        cells.append(field("VirusTotal detections", f'<span class="he-big">{malicious} / {counted}</span> <span class="he-note">engines</span>'))
+    if s.threat_label or s.categories:
+        cells.append(field("Classification", f'<span class="he-mono">{esc(s.threat_label)}</span> · {esc(", ".join(s.categories) or None)}'))
+    if s.reputation is not None:
+        cells.append(field("Community reputation", f"{esc(s.reputation)} <span class='he-note'>(negative = reported bad)</span>"))
+    if s.threatfox:
+        threat_type, confidence = s.threatfox
+        cells.append(field("ThreatFox", f"{esc(threat_type)} · {esc(confidence)}% confidence"))
+    if s.delivery or s.origin:
+        cells.append(field("Delivery · origin", f"{esc(s.delivery)} · {esc(s.origin)}"))
+    if s.first_seen:
+        date, where = s.first_seen
+        cells.append(field("First seen", f'{esc(date)} <span class="he-note">({esc(where)})</span>'))
+    if s.last_analysis:
+        cells.append(field("Last analysed", esc(s.last_analysis)))
+    if s.cves:
+        cells.append(field("Exploits", tags_html(s.cves)))
+    if s.tags:
+        cells.append(field("Tags", tags_html(s.tags)))
+    if s.malpedia:
+        cells.append(field("Reference", f'<a href="{esc(s.malpedia)}" target="_blank" rel="noopener noreferrer">Malpedia ↗</a>'))
+    if cells:
+        card(f'<div class="he-label" style="color:var(--cyan)">Summary</div><div class="he-grid">{"".join(f"<div>{c}</div>" for c in cells)}</div>')
 
 
 def show_status_chips(sources: dict[str, Any]) -> None:
