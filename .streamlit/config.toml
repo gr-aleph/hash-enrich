@@ -1,0 +1,10 @@
+# Read automatically when Streamlit is started from the project folder.
+
+[server]
+# Only this laptop can open the page. The page calls the backend with your API key,
+# so a page open to the network would let others use your quota. See design.md.
+address = "127.0.0.1"
+port = 8501
+
+[browser]
+gatherUsageStats = false
