@@ -18,7 +18,7 @@ BACKEND_URL = os.getenv("BACKEND_URL", "http://127.0.0.1:8000").rstrip("/")
 # Longer than the backend's per-source timeout, so the backend always answers first.
 BACKEND_TIMEOUT = float(os.getenv("SOURCE_TIMEOUT_SECONDS", "10")) + 5
 
-SOURCE_LABELS = {"virustotal": "VirusTotal"}
+SOURCE_LABELS = {"virustotal": "VirusTotal", "malwarebazaar": "MalwareBazaar", "threatfox": "ThreatFox"}
 
 
 def main() -> None:
@@ -82,10 +82,12 @@ def show_source(name: str, result: dict[str, Any]) -> None:
     st.subheader(SOURCE_LABELS.get(name, name))
     status = result["status"]
     if status == "ok":
-        if name == "virustotal":
-            show_virustotal(result["data"])
-        else:
-            st.json(result["data"])
+        show_data = {
+            "virustotal": show_virustotal,
+            "malwarebazaar": show_malwarebazaar,
+            "threatfox": show_threatfox,
+        }.get(name, st.json)
+        show_data(result["data"])
     elif status == "not_found":
         st.info("No record for this hash. This does not mean the file is safe.")
     elif status == "unsupported":
@@ -108,6 +110,32 @@ def show_virustotal(data: dict[str, Any]) -> None:
         if len(names) > 20:
             st.caption(f"…and {len(names) - 20} more")
     st.link_button("Open in VirusTotal", data["link"])
+
+
+def show_malwarebazaar(data: dict[str, Any]) -> None:
+    st.write(f"**Malware family:** {data.get('signature') or 'unknown'}")
+    tags = data.get("tags") or []
+    st.write("**Tags:** " + (", ".join(f"`{t}`" for t in tags) if tags else "none"))
+    st.write(f"**File type:** {data.get('file_type') or 'unknown'}")
+    st.write(f"**First seen:** {data.get('first_seen') or 'unknown'} · **Last seen:** {data.get('last_seen') or 'unknown'}")
+
+
+def show_threatfox(data: dict[str, Any]) -> None:
+    matches = data.get("matches") or []
+    st.write(f"Listed as an IOC {len(matches)} time(s).")
+    st.dataframe(
+        [
+            {
+                "Malware": m.get("malware_printable"),
+                "Threat type": m.get("threat_type"),
+                "Confidence": m.get("confidence_level"),
+                "First seen": m.get("first_seen"),
+                "Last seen": m.get("last_seen") or "",
+            }
+            for m in matches
+        ],
+        hide_index=True,
+    )
 
 
 main()
